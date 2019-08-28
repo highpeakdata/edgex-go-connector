@@ -2,7 +2,8 @@
 	"url": "http://10.3.32.230:3000",
 	"authkey": "",
 	"secret": "",
-    "bucket": "",
-    "object": "",
+	"bucket": "",
+	"object": "",
+	"mockup": 1,
 	"debug": 0
 }

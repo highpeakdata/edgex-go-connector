@@ -13,6 +13,7 @@ import (
 
 // EdgexTest - general Edgex client test structure
 type EdgexTest struct {
+	Mockup  int    `json:"mockup"`
 	Url     string `json:"url"`
 	Authkey string `json:"authkey"`
 	Secret  string `json:"secret"`
@@ -22,7 +23,9 @@ type EdgexTest struct {
 }
 
 var ed EdgexTest
+var s3x S3xClient
 var ex *Edgex
+var em *Mockup
 
 func TestMain(m *testing.M) {
 	rand.Seed(time.Now().UnixNano())
@@ -48,21 +51,31 @@ func TestMain(m *testing.M) {
 		ed.Object = fmt.Sprintf("obj%d", rand.Intn(10000))
 	}
 
-	log.Println("Create Edgex connection url:", ed.Url)
-
-	ex = CreateEdgex(ed.Url, ed.Authkey, ed.Secret, ed.Debug)
+	if ed.Mockup == 0 {
+		log.Println("Create Edgex:", ed)
+		ex = CreateEdgex(ed.Url, ed.Authkey, ed.Secret, ed.Debug)
+		s3x = ex
+	} else {
+		log.Println("Create Edgex mockup")
+		em = CreateMockup(ed.Debug)
+		s3x = em
+	}
 
 	// Run tests
 	exitVal := m.Run()
 
-	log.Println("Close Edgex connection")
-	CloseEdgex(ex)
+	if ed.Mockup == 0 {
+		log.Println("Close Edgex connection:")
+		CloseEdgex(ex)
+	} else {
+		log.Println("Close Edgex mockup:")
+	}
 	os.Exit(exitVal)
 }
 
 func TestBucketCreate(t *testing.T) {
 
-	res := BucketCreate(ex, ed.Bucket)
+	res := s3x.BucketCreate(ed.Bucket)
 
 	if res != nil {
 		t.Fatal("Bucket create error", res)
@@ -71,7 +84,7 @@ func TestBucketCreate(t *testing.T) {
 
 func TestBucketHead(t *testing.T) {
 
-	res := BucketHead(ex, ed.Bucket)
+	res := s3x.BucketHead(ed.Bucket)
 
 	if res != nil {
 		t.Fatal("Head error", res)
@@ -80,7 +93,7 @@ func TestBucketHead(t *testing.T) {
 
 func TestKeyValueCreate(t *testing.T) {
 
-	res := KeyValueCreate(ex, ed.Bucket, ed.Object,
+	res := s3x.KeyValueCreate(ed.Bucket, ed.Object,
 		"application/json", DEFAULT_CHUNKSIZE, DEFAULT_BTREE_ORDER)
 
 	if res != nil {
@@ -90,7 +103,7 @@ func TestKeyValueCreate(t *testing.T) {
 
 func TestObjectHead(t *testing.T) {
 
-	res := ObjectHead(ex, ed.Bucket, ed.Object)
+	res := s3x.ObjectHead(ed.Bucket, ed.Object)
 
 	if res != nil {
 		t.Fatal("Object Head error", res)
@@ -99,7 +112,7 @@ func TestObjectHead(t *testing.T) {
 
 func TestNotObjectHead(t *testing.T) {
 
-	res := ObjectHead(ex, ed.Bucket, "notobject")
+	res := s3x.ObjectHead(ed.Bucket, "notobject")
 
 	if res == nil {
 		t.Fatal("Not Object Head error")
@@ -108,11 +121,11 @@ func TestNotObjectHead(t *testing.T) {
 
 func TestKeyValuePost(t *testing.T) {
 
-	res := KeyValuePost(ex, ed.Bucket, ed.Object, "", "key1", "value1", true)
+	res := s3x.KeyValuePost(ed.Bucket, ed.Object, "", "key1", "value1", true)
 	if res != nil {
 		t.Fatal("K/V object post1 error", res)
 	}
-	res = KeyValuePost(ex, ed.Bucket, ed.Object, "", "key2", "value2", true)
+	res = s3x.KeyValuePost(ed.Bucket, ed.Object, "", "key2", "value2", true)
 	if res != nil {
 		t.Fatal("K/V object post1 error", res)
 	}
@@ -122,66 +135,95 @@ func TestKeyValuePostJSON(t *testing.T) {
 
 	json := ArrToJSON("key3", "value3", "key4", "value4", "key5", "value5")
 
-	res := KeyValuePostJSON(ex, ed.Bucket, ed.Object, json, false)
+	res := s3x.KeyValuePostJSON(ed.Bucket, ed.Object, json, false)
 	if res != nil {
 		t.Fatal("K/V object json post error", res)
 	}
 }
 
+func TestKeyValuePostCVS(t *testing.T) {
+
+	cvs := ArrToCVS("xx/kk9", "vv9", "xx/kk1", "vv1", "xz", "vv2", "xx/k3", "vv3")
+
+	res := s3x.KeyValuePostCSV(ed.Bucket, ed.Object, cvs, false)
+	if res != nil {
+		t.Fatal("K/V object cvs post error", res)
+	}
+
+	key := "xx"
+	prefix := "xx"
+	res = s3x.KeyValueList(ed.Bucket, ed.Object, key, prefix, "text/csv", 100, true)
+	if res != nil {
+		t.Fatal("K/V object json list error", res)
+	}
+	fmt.Printf("K/V list from key: %s:\n%s\n", key, s3x.GetLastValue())
+
+}
+
 func TestKeyValueGet(t *testing.T) {
-	key := "key2"
-	res := KeyValueGet(ex, ed.Bucket, ed.Object, key)
+	key := "key1"
+	res := s3x.KeyValueGet(ed.Bucket, ed.Object, key)
 	if res != nil {
 		t.Fatal("K/V object get error", res)
 	}
-	fmt.Printf("K/V get key: %s, value : %s\n", key, ex.Value)
+	fmt.Printf("K/V get key: %s, value : %s\n", key, s3x.GetLastValue())
+	key = "ke"
+	res = s3x.KeyValueGet(ed.Bucket, ed.Object, key)
+	if res == nil {
+		t.Fatal("K/V object get should fail for", key)
+	}
+	key = "key1x"
+	res = s3x.KeyValueGet(ed.Bucket, ed.Object, key)
+	if res == nil {
+		t.Fatal("K/V object get should fail for", key)
+	}
 }
 
 func TestKeyValueDeleteJSON(t *testing.T) {
 
 	json := ArrToJSON("key1", "", "key2", "")
 
-	res := KeyValueDeleteJSON(ex, ed.Bucket, ed.Object, json, false)
+	res := s3x.KeyValueDeleteJSON(ed.Bucket, ed.Object, json, false)
 	if res != nil {
 		t.Fatal("K/V object json delete error", res)
 	}
 
-	res = KeyValueGet(ex, ed.Bucket, ed.Object, "key1")
+	res = s3x.KeyValueGet(ed.Bucket, ed.Object, "key1")
 	if res == nil {
 		t.Fatal("K/V object key1 not deleted")
 	}
 
-	res = KeyValueGet(ex, ed.Bucket, ed.Object, "key2")
-	if res != nil {
-		t.Fatal("K/V object key2 not available")
+	res = s3x.KeyValueGet(ed.Bucket, ed.Object, "key2")
+	if res == nil {
+		t.Fatal("K/V object key2 not deleted")
 	}
 }
 
 func TestKeyValueListCSV(t *testing.T) {
-	key := "key4"
-	res := KeyValueList(ex, ed.Bucket, ed.Object, key, "text/csv", 100, true)
+	key := ""
+	res := s3x.KeyValueList(ed.Bucket, ed.Object, key, "", "text/csv", 100, true)
 	if res != nil {
 		t.Fatal("K/V object json list error", res)
 	}
-	fmt.Printf("K/V list from key: %s:\n %s\n", key, ex.Value)
+	fmt.Printf("K/V list from key: %s:\n%s\n", key, s3x.GetLastValue())
 }
 
 func TestKeyValueListJSON(t *testing.T) {
 	key := "key4"
-	res := KeyValueList(ex, ed.Bucket, ed.Object, key, "application/json", 100, true)
+	res := s3x.KeyValueList(ed.Bucket, ed.Object, key, "", "application/json", 100, true)
 	if res != nil {
 		t.Fatal("K/V object json list error", res)
 	}
-	fmt.Printf("K/V list from key: %s:\n %s\n", key, ex.Value)
+	fmt.Printf("K/V list from key: %s:\n %s\n", key, s3x.GetLastValue())
 }
 
 func TestKeyValueDelete(t *testing.T) {
 	key := "key5"
-	res := KeyValueDelete(ex, ed.Bucket, ed.Object, key, false)
+	res := s3x.KeyValueDelete(ed.Bucket, ed.Object, key, false)
 	if res != nil {
 		t.Fatal("K/V object delete error", res)
 	}
-	res = KeyValueGet(ex, ed.Bucket, ed.Object, key)
+	res = s3x.KeyValueGet(ed.Bucket, ed.Object, key)
 	if res == nil {
 		t.Fatal("K/V object not deleted")
 	}
@@ -189,7 +231,7 @@ func TestKeyValueDelete(t *testing.T) {
 
 func TestKeyValueObjectDelete(t *testing.T) {
 
-	res := ObjectDelete(ex, ed.Bucket, ed.Object)
+	res := s3x.ObjectDelete(ed.Bucket, ed.Object)
 
 	if res != nil {
 		t.Fatal("K/V object delete error", res)
@@ -198,7 +240,7 @@ func TestKeyValueObjectDelete(t *testing.T) {
 
 func TestBucketDelete(t *testing.T) {
 
-	res := BucketDelete(ex, ed.Bucket)
+	res := s3x.BucketDelete(ed.Bucket)
 
 	if res != nil {
 		t.Fatal("Bucket delete error", res)

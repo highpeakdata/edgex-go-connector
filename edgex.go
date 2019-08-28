@@ -21,13 +21,24 @@ const CCOW_O_REPLACE int = 0x01
 const CCOW_O_CREATE int = 0x02
 const BYTE_BUFFER int = 16 * 1024
 
-// Edgex - general Edgex client structure
+// Edgex - Edgex client structure
 type Edgex struct {
 	Url string
 
 	// s3 authentication keys
 	Authkey string
 	Secret  string
+
+	// Current session
+	Bucket string
+	Object string
+	Sid    string
+	Value  string
+	Debug  int
+}
+
+// EdgexMockup - Edgex client mockup structure
+type EdgexMockup struct {
 
 	// Current session
 	Bucket string
@@ -64,8 +75,13 @@ func CloseEdgex(edgex *Edgex) {
 	return
 }
 
+// GetValue - get last result value
+func (edgex *Edgex) GetLastValue() string {
+	return edgex.Value
+}
+
 // BucketCreate - create a new bucket
-func BucketCreate(edgex *Edgex, bucket string) error {
+func (edgex *Edgex) BucketCreate(bucket string) error {
 	var url = edgex.Url + "/" + bucket
 	edgex.Bucket = bucket
 
@@ -88,7 +104,7 @@ func BucketCreate(edgex *Edgex, bucket string) error {
 }
 
 // KeyValueCreate - create key/value object
-func KeyValueCreate(edgex *Edgex, bucket string, object string,
+func (edgex *Edgex) KeyValueCreate(bucket string, object string,
 	contentType string, chunkSize int, btreeOrder int) error {
 	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv&finalize"
 	edgex.Bucket = bucket
@@ -120,7 +136,7 @@ func KeyValueCreate(edgex *Edgex, bucket string, object string,
 }
 
 // ObjectDelete - delete object
-func ObjectDelete(edgex *Edgex, bucket string, object string) error {
+func (edgex *Edgex) ObjectDelete(bucket string, object string) error {
 	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=del"
 	edgex.Bucket = bucket
 	edgex.Object = object
@@ -144,7 +160,7 @@ func ObjectDelete(edgex *Edgex, bucket string, object string) error {
 }
 
 // BucketDelete - delete bucket
-func BucketDelete(edgex *Edgex, bucket string) error {
+func (edgex *Edgex) BucketDelete(bucket string) error {
 	var url = edgex.Url + "/" + bucket
 	edgex.Bucket = bucket
 
@@ -167,7 +183,7 @@ func BucketDelete(edgex *Edgex, bucket string) error {
 }
 
 // ObjectHead - read object header fields
-func ObjectHead(edgex *Edgex, bucket string, object string) error {
+func (edgex *Edgex) ObjectHead(bucket string, object string) error {
 	var url = edgex.Url + "/" + bucket + "/" + object
 	url += "?comp=streamsession&finalize"
 	edgex.Bucket = bucket
@@ -193,7 +209,7 @@ func ObjectHead(edgex *Edgex, bucket string, object string) error {
 }
 
 // BucketHead - read bucket header fields
-func BucketHead(edgex *Edgex, bucket string) error {
+func (edgex *Edgex) BucketHead(bucket string) error {
 	var url = edgex.Url + "/" + bucket
 	url += "?comp=streamsession&finalize"
 	edgex.Bucket = bucket
@@ -218,7 +234,7 @@ func BucketHead(edgex *Edgex, bucket string) error {
 }
 
 // KeyValuePost - post key/value pairs
-func KeyValuePost(edgex *Edgex, bucket string, object string, contentType string,
+func (edgex *Edgex) KeyValuePost(bucket string, object string, contentType string,
 	key string, value string, more bool) error {
 	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv&key=" + key
 	edgex.Bucket = bucket
@@ -262,7 +278,7 @@ func KeyValuePost(edgex *Edgex, bucket string, object string, contentType string
 }
 
 // KeyValuePostJSON - post key/value pairs
-func KeyValuePostJSON(edgex *Edgex, bucket string, object string,
+func (edgex *Edgex) KeyValuePostJSON(bucket string, object string,
 	keyValueJSON string, more bool) error {
 	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv"
 	edgex.Bucket = bucket
@@ -301,8 +317,48 @@ func KeyValuePostJSON(edgex *Edgex, bucket string, object string,
 	return fmt.Errorf("%s/%s json post status code: %v", bucket, object, res.StatusCode)
 }
 
+// KeyValuePostCSV - post key/value pairs presented like csv
+func (edgex *Edgex) KeyValuePostCSV(bucket string, object string,
+	keyValueCSV string, more bool) error {
+	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv"
+	edgex.Bucket = bucket
+	edgex.Object = object
+
+	if !more {
+		url += "&finalize"
+	}
+
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", url, bytes.NewBufferString(keyValueCSV))
+	if err != nil {
+		fmt.Printf("k/v create key/value csv post error: %v\n", err)
+		return err
+	}
+
+	req.Header.Add("Content-Type", "text/csv")
+	req.Header.Add("Content-Length", strconv.Itoa(len(keyValueCSV)))
+	if edgex.Sid != "" {
+		req.Header.Add("x-session-id", edgex.Sid)
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("k/v csv post error: %v\n", err)
+		return err
+	}
+	defer res.Body.Close()
+	if edgex.Debug > 0 {
+		fmt.Printf("k/v csv post result %v\n", res)
+	}
+	if res.StatusCode < 300 {
+		sid := res.Header.Get("X-Session-Id")
+		edgex.Sid = sid
+		return nil
+	}
+	return fmt.Errorf("%s/%s csv post status code: %v", bucket, object, res.StatusCode)
+}
+
 // KeyValueDelete - delete key/value pair
-func KeyValueDelete(edgex *Edgex, bucket string, object string,
+func (edgex *Edgex) KeyValueDelete(bucket string, object string,
 	key string, more bool) error {
 	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv&key=" + key
 	edgex.Bucket = bucket
@@ -342,7 +398,7 @@ func KeyValueDelete(edgex *Edgex, bucket string, object string,
 }
 
 // KeyValueDeleteJSON - delete key/value pairs defined by json
-func KeyValueDeleteJSON(edgex *Edgex, bucket string, object string,
+func (edgex *Edgex) KeyValueDeleteJSON(bucket string, object string,
 	keyValueJSON string, more bool) error {
 	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv"
 	edgex.Bucket = bucket
@@ -382,7 +438,7 @@ func KeyValueDeleteJSON(edgex *Edgex, bucket string, object string,
 }
 
 // KeyValueGet - read object value field
-func KeyValueGet(edgex *Edgex, bucket string, object string, key string) error {
+func (edgex *Edgex) KeyValueGet(bucket string, object string, key string) error {
 	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kvget&key=" + key
 	edgex.Bucket = bucket
 	edgex.Object = object
@@ -411,14 +467,18 @@ func KeyValueGet(edgex *Edgex, bucket string, object string, key string) error {
 }
 
 // KeyValueList - read key/value pairs, contentType: application/json or text/csv
-func KeyValueList(edgex *Edgex, bucket string, object string,
-	from string, contentType string, maxcount int, values bool) error {
+func (edgex *Edgex) KeyValueList(bucket string, object string,
+	from string, pattern string, contentType string, maxcount int, values bool) error {
 	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv"
 	edgex.Bucket = bucket
 	edgex.Object = object
 
 	if from != "" {
 		url += "&key=" + from
+	}
+
+	if pattern != "" {
+		url += "&pattern=" + pattern
 	}
 
 	if maxcount > 0 {
@@ -458,26 +518,4 @@ func KeyValueList(edgex *Edgex, bucket string, object string,
 		return fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 	return fmt.Errorf("Object %s/%s list error: %v", bucket, object, res)
-}
-
-// ArrToJSON - convert k/v pairs to json
-func ArrToJSON(arr ...string) string {
-	var b bytes.Buffer
-
-	b.WriteString("{")
-	n := 0
-	for i := 0; i < len(arr); i += 2 {
-		if n > 0 {
-			b.WriteString(", ")
-		}
-		b.WriteString(" \"")
-		b.WriteString(arr[i])
-		b.WriteString("\": \"")
-		b.WriteString(arr[i+1])
-		b.WriteString("\"")
-		n++
-	}
-	b.WriteString("}")
-
-	return b.String()
 }
