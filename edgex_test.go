@@ -1,6 +1,7 @@
 package edgex
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -121,13 +122,50 @@ func TestNotObjectHead(t *testing.T) {
 
 func TestKeyValuePost(t *testing.T) {
 
-	res := s3x.KeyValuePost(ed.Bucket, ed.Object, "", "key1", "value1", true)
+	res := s3x.KeyValuePost(ed.Bucket, ed.Object, "", "key1",
+		bytes.NewBufferString("value1"), true)
 	if res != nil {
 		t.Fatal("K/V object post1 error", res)
 	}
-	res = s3x.KeyValuePost(ed.Bucket, ed.Object, "", "key2", "value2", true)
+	res = s3x.KeyValuePost(ed.Bucket, ed.Object, "", "key2",
+		bytes.NewBufferString("value2"), true)
 	if res != nil {
 		t.Fatal("K/V object post1 error", res)
+	}
+}
+
+func TestKeyValueCommit(t *testing.T) {
+	key := "aaa1"
+	res := s3x.KeyValuePost(ed.Bucket, ed.Object, "", key,
+		bytes.NewBufferString("value1"), true)
+	if res != nil {
+		t.Fatal("K/V object post1 error", res)
+	}
+	res = s3x.KeyValueCommit(ed.Bucket, ed.Object)
+	if res != nil {
+		t.Fatal("K/V object commit error", res)
+	}
+	res = s3x.KeyValueGet(ed.Bucket, ed.Object, key)
+	if res != nil {
+		t.Fatal("K/V object get after commit error", res)
+	}
+	fmt.Printf("K/V get key: %s, value : %s\n", key, s3x.GetLastValue())
+}
+
+func TestKeyValueRollback(t *testing.T) {
+	key := "aaa2"
+	res := s3x.KeyValuePost(ed.Bucket, ed.Object, "", key,
+		bytes.NewBufferString("value2"), true)
+	if res != nil {
+		t.Fatal("K/V object post1 error", res)
+	}
+	res = s3x.KeyValueRollback(ed.Bucket, ed.Object)
+	if res != nil {
+		t.Fatal("K/V object rollback error", res)
+	}
+	res = s3x.KeyValueGet(ed.Bucket, ed.Object, key)
+	if res == nil {
+		t.Fatal("K/V object still exists after rollback")
 	}
 }
 

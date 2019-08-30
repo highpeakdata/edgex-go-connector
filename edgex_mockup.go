@@ -9,7 +9,9 @@ import (
 )
 
 type kvobj struct {
-	keyValue map[string]string
+	keyValue  map[string]string
+	recent    map[string]string
+	recentDel []string
 }
 
 // Mockup - mockup client mockup structure
@@ -25,7 +27,7 @@ type Mockup struct {
 	Debug  int
 }
 
-// Createmockup - client structure constructorcd
+// CreateMockup - client structure constructor
 func CreateMockup(debug int) *Mockup {
 	mockup := new(Mockup)
 	mockup.buckets = make(map[string]int)
@@ -38,7 +40,7 @@ func CreateMockup(debug int) *Mockup {
 	return mockup
 }
 
-// GetValue - get last result value
+// GetLastValue - get last result value
 func (mockup *Mockup) GetLastValue() string {
 	return mockup.Value
 }
@@ -71,7 +73,51 @@ func (mockup *Mockup) KeyValueCreate(bucket string, object string,
 
 	var kv kvobj
 	kv.keyValue = make(map[string]string)
+	kv.recent = make(map[string]string)
 	mockup.objects[uri] = kv
+	return nil
+}
+
+// keyValueCommitNow - commit key/value insert/update/delete
+func keyValueCommitNow(mockup *Mockup, bucket string, object string) error {
+	var uri = bucket + "/" + object
+	o, exists := mockup.objects[uri]
+	if !exists {
+		return fmt.Errorf("Object %s/%s not found", bucket, object)
+	}
+	for key, value := range o.recent {
+		o.keyValue[key] = value
+	}
+	for _, key := range o.recentDel {
+		delete(o.keyValue, key)
+	}
+	if len(o.recentDel) > 0 {
+		o.recentDel = nil
+	}
+	if len(o.recent) > 0 {
+		o.recent = make(map[string]string)
+	}
+	return nil
+}
+
+// KeyValueCommit - commit key/value insert/update/delete
+func (mockup *Mockup) KeyValueCommit(bucket string, object string) error {
+	return keyValueCommitNow(mockup, bucket, object)
+}
+
+// KeyValueRollback - rollback key/value insert/update/delete session
+func (mockup *Mockup) KeyValueRollback(bucket string, object string) error {
+	var uri = bucket + "/" + object
+	o, exists := mockup.objects[uri]
+	if !exists {
+		return fmt.Errorf("Object %s/%s not found", bucket, object)
+	}
+	if len(o.recentDel) > 0 {
+		o.recentDel = nil
+	}
+	if len(o.recent) > 0 {
+		o.recent = make(map[string]string)
+	}
 	return nil
 }
 
@@ -110,14 +156,19 @@ func (mockup *Mockup) BucketHead(bucket string) error {
 
 // KeyValuePost - post key/value pairs
 func (mockup *Mockup) KeyValuePost(bucket string, object string, contentType string,
-	key string, value string, more bool) error {
+	key string, value *bytes.Buffer, more bool) error {
 	var uri = bucket + "/" + object
 
 	o, exists := mockup.objects[uri]
 	if !exists {
 		return fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
-	o.keyValue[key] = value
+	if more {
+		o.recent[key] = value.String()
+	} else {
+		keyValueCommitNow(mockup, bucket, object)
+		o.keyValue[key] = value.String()
+	}
 	return nil
 }
 
@@ -131,11 +182,19 @@ func (mockup *Mockup) KeyValuePostJSON(bucket string, object string,
 		return fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 
+	if !more {
+		keyValueCommitNow(mockup, bucket, object)
+	}
+
 	var result map[string]interface{}
 	json.Unmarshal([]byte(keyValueJSON), &result)
 
 	for key, value := range result {
-		o.keyValue[key] = value.(string)
+		if more {
+			o.recent[key] = value.(string)
+		} else {
+			o.keyValue[key] = value.(string)
+		}
 	}
 	return nil
 }
@@ -151,6 +210,10 @@ func (mockup *Mockup) KeyValuePostCSV(bucket string, object string,
 		return fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 
+	if !more {
+		keyValueCommitNow(mockup, bucket, object)
+	}
+
 	result := strings.Split(keyValueCSV, "\n")
 
 	for _, s := range result {
@@ -158,7 +221,11 @@ func (mockup *Mockup) KeyValuePostCSV(bucket string, object string,
 		if len(kv) < 2 {
 			continue
 		}
-		o.keyValue[kv[0]] = kv[1]
+		if more {
+			o.recent[kv[0]] = kv[1]
+		} else {
+			o.keyValue[kv[0]] = kv[1]
+		}
 	}
 	return nil
 }
@@ -174,7 +241,16 @@ func (mockup *Mockup) KeyValueDelete(bucket string, object string,
 		return fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 
-	delete(o.keyValue, key)
+	if !more {
+		keyValueCommitNow(mockup, bucket, object)
+	}
+
+	if more {
+		delete(o.recent, key)
+		o.recentDel = append(o.recentDel, key)
+	} else {
+		delete(o.keyValue, key)
+	}
 	return nil
 }
 
@@ -188,11 +264,20 @@ func (mockup *Mockup) KeyValueDeleteJSON(bucket string, object string,
 		return fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 
+	if !more {
+		keyValueCommitNow(mockup, bucket, object)
+	}
+
 	var result map[string]interface{}
 	json.Unmarshal([]byte(keyValueJSON), &result)
 
-	for key, _ := range result {
-		delete(o.keyValue, key)
+	for key := range result {
+		if more {
+			delete(o.recent, key)
+			o.recentDel = append(o.recentDel, key)
+		} else {
+			delete(o.keyValue, key)
+		}
 	}
 	return nil
 }

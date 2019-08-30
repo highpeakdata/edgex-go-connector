@@ -235,17 +235,19 @@ func (edgex *Edgex) BucketHead(bucket string) error {
 
 // KeyValuePost - post key/value pairs
 func (edgex *Edgex) KeyValuePost(bucket string, object string, contentType string,
-	key string, value string, more bool) error {
+	key string, value *bytes.Buffer, more bool) error {
 	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv&key=" + key
 	edgex.Bucket = bucket
 	edgex.Object = object
 
 	if !more {
-		url += "&finalize"
+		url += "&x-ccow-autocommit=1&finalize"
+	} else {
+		url += "&x-ccow-autocommit=0"
 	}
 
 	client := &http.Client{}
-	req, err := http.NewRequest("POST", url, bytes.NewBufferString(value))
+	req, err := http.NewRequest("POST", url, value)
 	if err != nil {
 		fmt.Printf("k/v create key/value post error: %v\n", err)
 		return err
@@ -256,7 +258,7 @@ func (edgex *Edgex) KeyValuePost(bucket string, object string, contentType strin
 	} else {
 		req.Header.Add("Content-Type", "application/octet-stream")
 	}
-	req.Header.Add("Content-Length", strconv.Itoa(len(value)))
+	req.Header.Add("Content-Length", strconv.Itoa(value.Len()))
 	if edgex.Sid != "" {
 		req.Header.Add("x-session-id", edgex.Sid)
 	}
@@ -285,7 +287,9 @@ func (edgex *Edgex) KeyValuePostJSON(bucket string, object string,
 	edgex.Object = object
 
 	if !more {
-		url += "&finalize"
+		url += "&x-ccow-autocommit=1&finalize"
+	} else {
+		url += "&x-ccow-autocommit=0"
 	}
 
 	client := &http.Client{}
@@ -325,7 +329,9 @@ func (edgex *Edgex) KeyValuePostCSV(bucket string, object string,
 	edgex.Object = object
 
 	if !more {
-		url += "&finalize"
+		url += "&x-ccow-autocommit=1&finalize"
+	} else {
+		url += "&x-ccow-autocommit=0"
 	}
 
 	client := &http.Client{}
@@ -365,7 +371,9 @@ func (edgex *Edgex) KeyValueDelete(bucket string, object string,
 	edgex.Object = object
 
 	if !more {
-		url += "&finalize"
+		url += "&x-ccow-autocommit=1&finalize"
+	} else {
+		url += "&x-ccow-autocommit=0"
 	}
 
 	client := &http.Client{}
@@ -405,7 +413,9 @@ func (edgex *Edgex) KeyValueDeleteJSON(bucket string, object string,
 	edgex.Object = object
 
 	if !more {
-		url += "&finalize"
+		url += "&x-ccow-autocommit=1&finalize"
+	} else {
+		url += "&x-ccow-autocommit=0"
 	}
 
 	client := &http.Client{}
@@ -435,6 +445,82 @@ func (edgex *Edgex) KeyValueDeleteJSON(bucket string, object string,
 		return nil
 	}
 	return fmt.Errorf("%s/%s json delete status code: %v", bucket, object, res.StatusCode)
+}
+
+// KeyValueCommit - commit key/value insert/update/delete
+func (edgex *Edgex) KeyValueCommit(bucket string, object string) error {
+	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv"
+	edgex.Bucket = bucket
+	edgex.Object = object
+
+	url += "&x-ccow-autocommit=1&finalize"
+
+	kvjson := "{}"
+
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", url, bytes.NewBufferString(kvjson))
+	if err != nil {
+		fmt.Printf("k/v create key/value commit post error: %v\n", err)
+		return err
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Length", strconv.Itoa(len(kvjson)))
+	if edgex.Sid != "" {
+		req.Header.Add("x-session-id", edgex.Sid)
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("k/v commit post error: %v\n", err)
+		return err
+	}
+	defer res.Body.Close()
+	if edgex.Debug > 0 {
+		fmt.Printf("k/v commit post result %v\n", res)
+	}
+	edgex.Sid = ""
+	if res.StatusCode < 300 {
+		return nil
+	}
+	return fmt.Errorf("%s/%s commit post status code: %v", bucket, object, res.StatusCode)
+}
+
+// KeyValueRollback - rollback key/value insert/update/delete session
+func (edgex *Edgex) KeyValueRollback(bucket string, object string) error {
+	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv"
+	edgex.Bucket = bucket
+	edgex.Object = object
+
+	url += "&x-ccow-autocommit=0&cancel=1"
+
+	kvjson := "{}"
+
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", url, bytes.NewBufferString(kvjson))
+	if err != nil {
+		fmt.Printf("k/v create key/value rollback post error: %v\n", err)
+		return err
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Length", strconv.Itoa(len(kvjson)))
+	if edgex.Sid != "" {
+		req.Header.Add("x-session-id", edgex.Sid)
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("k/v rollback post error: %v\n", err)
+		return err
+	}
+	defer res.Body.Close()
+	if edgex.Debug > 0 {
+		fmt.Printf("k/v rollback post result %v\n", res)
+	}
+	edgex.Sid = ""
+	if res.StatusCode < 300 {
+		return nil
+	}
+	return fmt.Errorf("%s/%s rollback post status code: %v", bucket, object, res.StatusCode)
 }
 
 // KeyValueGet - read object value field

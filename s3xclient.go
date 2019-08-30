@@ -1,5 +1,8 @@
 package edgex
 
+import "bytes"
+
+// S3xClient - s3x client interface
 type S3xClient interface {
 	BucketCreate(bucket string) error
 	BucketHead(bucket string) error
@@ -8,7 +11,7 @@ type S3xClient interface {
 	KeyValueCreate(bucket string, object string,
 		contentType string, chunkSize int, btreeOrder int) error
 	KeyValuePost(bucket string, object string, contentType string,
-		key string, value string, more bool) error
+		key string, value *bytes.Buffer, more bool) error
 	KeyValuePostJSON(bucket string, object string,
 		keyValueJSON string, more bool) error
 	KeyValuePostCSV(bucket string, object string,
@@ -17,6 +20,8 @@ type S3xClient interface {
 		key string, more bool) error
 	KeyValueDeleteJSON(bucket string, object string,
 		keyValueJSON string, more bool) error
+	KeyValueCommit(bucket string, object string) error
+	KeyValueRollback(bucket string, object string) error
 	KeyValueGet(bucket string, object string, key string) error
 	KeyValueList(bucket string, object string,
 		from string, pattern string, contentType string, maxcount int, values bool) error
