@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 type kvobj struct {
@@ -17,7 +18,7 @@ type kvobj struct {
 // Mockup - mockup client mockup structure
 type Mockup struct {
 	objects map[string]kvobj
-	buckets map[string]int
+	buckets map[string]Bucket
 
 	// Current session
 	Bucket string
@@ -30,7 +31,7 @@ type Mockup struct {
 // CreateMockup - client structure constructor
 func CreateMockup(debug int) *Mockup {
 	mockup := new(Mockup)
-	mockup.buckets = make(map[string]int)
+	mockup.buckets = make(map[string]Bucket)
 	mockup.objects = make(map[string]kvobj)
 	mockup.Debug = debug
 	mockup.Sid = ""
@@ -52,12 +53,13 @@ func (mockup *Mockup) BucketCreate(bucket string) error {
 		return fmt.Errorf("%s bucket already exists", bucket)
 	}
 
-	mockup.buckets[bucket] = 1
+	t := time.Now()
+	mockup.buckets[bucket] = Bucket{Name: bucket, CreationDate: t.Format(time.RFC3339)}
 	return nil
 }
 
-// KeyValueCreate - create key/value object
-func (mockup *Mockup) KeyValueCreate(bucket string, object string,
+// ObjectCreate - create object
+func (mockup *Mockup) ObjectCreate(bucket string, object string, objectType string,
 	contentType string, chunkSize int, btreeOrder int) error {
 
 	_, exists := mockup.buckets[bucket]
@@ -371,4 +373,56 @@ func (mockup *Mockup) KeyValueList(bucket string, object string,
 
 	mockup.Value = b.String()
 	return nil
+}
+
+// BucketList - read bucket list
+func (mockup *Mockup) BucketList() ([]Bucket, error) {
+	keys := make([]string, 0, len(mockup.buckets))
+
+	for k := range mockup.buckets {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var buckets []Bucket
+	for i := range keys {
+		key := keys[i]
+		buckets = append(buckets, mockup.buckets[key])
+	}
+	return buckets, nil
+}
+
+// ObjectList - read object list from bucket
+func (mockup *Mockup) ObjectList(bucket string,
+	from string, pattern string, maxcount int) ([]Object, error) {
+
+	var objects []Object
+	keys := make([]string, 0, len(mockup.objects))
+
+	for k := range mockup.objects {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	n := 0
+	t := time.Now()
+
+	for i := range keys {
+		key := strings.TrimPrefix(keys[i], bucket+"/")
+		if key < from {
+			continue
+		}
+
+		if pattern != "" && !strings.HasPrefix(key, pattern) {
+			continue
+		}
+
+		objects = append(objects, Object{Key: key, LastModified: t.Format(time.RFC3339), Size: 0})
+		n++
+		if n == maxcount {
+			break
+		}
+	}
+
+	return objects, nil
 }

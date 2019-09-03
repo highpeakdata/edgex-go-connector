@@ -94,7 +94,7 @@ func TestBucketHead(t *testing.T) {
 
 func TestKeyValueCreate(t *testing.T) {
 
-	res := s3x.KeyValueCreate(ed.Bucket, ed.Object,
+	res := s3x.ObjectCreate(ed.Bucket, ed.Object, OBJECT_TYPE_KEY_VALUE,
 		"application/json", DEFAULT_CHUNKSIZE, DEFAULT_BTREE_ORDER)
 
 	if res != nil {
@@ -253,6 +253,45 @@ func TestKeyValueListJSON(t *testing.T) {
 		t.Fatal("K/V object json list error", res)
 	}
 	fmt.Printf("K/V list from key: %s:\n %s\n", key, s3x.GetLastValue())
+}
+
+func TestBucketList(t *testing.T) {
+	res, err := s3x.BucketList()
+	if err != nil {
+		t.Fatal("Bucket list error", err)
+	}
+	fmt.Printf("Bucket list %v\n", res)
+	found := false
+	for i := range res {
+		if res[i].Name == ed.Bucket {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("Bucket not found: ", ed.Bucket)
+	}
+}
+
+func TestObjectList(t *testing.T) {
+
+	// Wait for trlog
+	time.Sleep(45 * time.Second)
+	res, err := s3x.ObjectList(ed.Bucket, "", "", 100)
+	if err != nil {
+		t.Fatal("Object list error", err)
+	}
+	fmt.Printf("Object list %v\n", res)
+	found := false
+	for i := range res {
+		if res[i].Key == ed.Object {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("Object not found: ", ed.Object)
+	}
 }
 
 func TestKeyValueDelete(t *testing.T) {

@@ -2,6 +2,7 @@ package edgex
 
 import (
 	"bytes"
+	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -28,17 +29,6 @@ type Edgex struct {
 	// s3 authentication keys
 	Authkey string
 	Secret  string
-
-	// Current session
-	Bucket string
-	Object string
-	Sid    string
-	Value  string
-	Debug  int
-}
-
-// EdgexMockup - Edgex client mockup structure
-type EdgexMockup struct {
 
 	// Current session
 	Bucket string
@@ -103,10 +93,16 @@ func (edgex *Edgex) BucketCreate(bucket string) error {
 	return fmt.Errorf("%s bucket create status code: %v", bucket, res.StatusCode)
 }
 
-// KeyValueCreate - create key/value object
-func (edgex *Edgex) KeyValueCreate(bucket string, object string,
+// ObjectCreate - create object
+func (edgex *Edgex) ObjectCreate(bucket string, object string, objectType string,
 	contentType string, chunkSize int, btreeOrder int) error {
-	var url = edgex.Url + "/" + bucket + "/" + object + "?comp=kv&finalize"
+	var url = edgex.Url + "/" + bucket + "/" + object
+
+	if objectType == OBJECT_TYPE_KEY_VALUE {
+		url += "?comp=kv&finalize"
+	} else {
+		url += "?comp=streamsession&finalize"
+	}
 	edgex.Bucket = bucket
 	edgex.Object = object
 
@@ -604,4 +600,86 @@ func (edgex *Edgex) KeyValueList(bucket string, object string,
 		return fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 	return fmt.Errorf("Object %s/%s list error: %v", bucket, object, res)
+}
+
+// BucketList - read bucket list
+func (edgex *Edgex) BucketList() ([]Bucket, error) {
+	var url = edgex.Url
+	var list ListAllMyBucketsResult
+
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Printf("k/v create key/value list error: %v\n", err)
+		return list.Buckets.Buckets, err
+	}
+
+	req.Header.Add("Content-Length", "0")
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Bucket list error: %v\n", err)
+		return list.Buckets.Buckets, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 300 {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			fmt.Printf("Object list read error: %v\n", err)
+			return list.Buckets.Buckets, err
+		}
+		err = xml.Unmarshal(body, &list)
+		return list.Buckets.Buckets, err
+	}
+	return list.Buckets.Buckets, fmt.Errorf("Bucket list error: %v", res)
+}
+
+// ObjectList - read object list from bucket
+func (edgex *Edgex) ObjectList(bucket string,
+	from string, pattern string, maxcount int) ([]Object, error) {
+	var url = edgex.Url + "/" + bucket
+	edgex.Bucket = bucket
+	var list ListBucketResult
+
+	sep := "?"
+	if from != "" {
+		url += sep + "marker=" + from
+		sep = "&"
+	}
+
+	if pattern != "" {
+		url += sep + "prefix=" + pattern
+		sep = "&"
+	}
+
+	if maxcount > 0 {
+		url += sep + "max-keys=" + strconv.Itoa(maxcount)
+		sep = "&"
+	}
+
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Printf("Object list error: %v\n", err)
+		return list.Objects, err
+	}
+
+	req.Header.Add("Content-Length", "0")
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Object list error: %v\n", err)
+		return list.Objects, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 300 {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			fmt.Printf("Object list read error: %v\n", err)
+			return list.Objects, err
+		}
+		err = xml.Unmarshal(body, &list)
+		return list.Objects, err
+	}
+	return list.Objects, fmt.Errorf("Bucket %s list error: %v", bucket, res)
 }
