@@ -405,7 +405,9 @@ func (mockup *Mockup) KeyValueList(bucket string, object string,
 			b.WriteString(key)
 			b.WriteString("\": \"")
 			b.WriteString(value)
-			b.WriteString("\"")
+			if values {
+				b.WriteString("\"")
+			}
 		} else {
 			if n > 0 {
 				b.WriteString("\n")
