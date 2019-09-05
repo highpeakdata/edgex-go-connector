@@ -1,4 +1,4 @@
-package edgex
+package s3xMockClient
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	s3xApi "github.com/Nexenta/edgex-go-connector/api/s3xclient/v1beta1"
 )
 
 type kvobj struct {
@@ -18,7 +20,7 @@ type kvobj struct {
 // Mockup - mockup client mockup structure
 type Mockup struct {
 	objects map[string]kvobj
-	buckets map[string]Bucket
+	buckets map[string]s3xApi.Bucket
 
 	// Current session
 	Bucket string
@@ -31,7 +33,7 @@ type Mockup struct {
 // CreateMockup - client structure constructor
 func CreateMockup(debug int) *Mockup {
 	mockup := new(Mockup)
-	mockup.buckets = make(map[string]Bucket)
+	mockup.buckets = make(map[string]s3xApi.Bucket)
 	mockup.objects = make(map[string]kvobj)
 	mockup.Debug = debug
 	mockup.Sid = ""
@@ -54,12 +56,12 @@ func (mockup *Mockup) BucketCreate(bucket string) error {
 	}
 
 	t := time.Now()
-	mockup.buckets[bucket] = Bucket{Name: bucket, CreationDate: t.Format(time.RFC3339)}
+	mockup.buckets[bucket] = s3xApi.Bucket{Name: bucket, CreationDate: t.Format(time.RFC3339)}
 	return nil
 }
 
 // ObjectCreate - create object
-func (mockup *Mockup) ObjectCreate(bucket string, object string, objectType string,
+func (mockup *Mockup) ObjectCreate(bucket string, object string, objectType s3xApi.ObjectType,
 	contentType string, chunkSize int, btreeOrder int) error {
 
 	_, exists := mockup.buckets[bucket]
@@ -156,9 +158,36 @@ func (mockup *Mockup) BucketHead(bucket string) error {
 	return fmt.Errorf("Bucket %s not found", bucket)
 }
 
+func (mockup *Mockup) KeyValueMapPost(bucket, object string, valuesMap s3xApi.S3xKVMap, more bool) error {
+	var uri = bucket + "/" + object
+
+	o, exists := mockup.objects[uri]
+	if !exists {
+		return fmt.Errorf("Object %s/%s not found", bucket, object)
+	}
+
+	if !more {
+		keyValueCommitNow(mockup, bucket, object)
+	}
+
+	for key, value := range valuesMap {
+
+		valueMapByte, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+
+		if more {
+			o.recent[key] = string(valueMapByte)
+		} else {
+			o.keyValue[key] = string(valueMapByte)
+		}
+	}
+	return nil
+}
+
 // KeyValuePost - post key/value pairs
-func (mockup *Mockup) KeyValuePost(bucket string, object string, contentType string,
-	key string, value *bytes.Buffer, more bool) error {
+func (mockup *Mockup) KeyValuePost(bucket string, object string, key string, value *bytes.Buffer, contentType string, more bool) error {
 	var uri = bucket + "/" + object
 
 	o, exists := mockup.objects[uri]
@@ -257,6 +286,31 @@ func (mockup *Mockup) KeyValueDelete(bucket string, object string,
 }
 
 // KeyValueDeleteJSON - delete key/value pairs defined by json
+func (mockup *Mockup) KeyValueMapDelete(bucket string, object string,
+	valuesMap s3xApi.S3xKVMap, more bool) error {
+	var uri = bucket + "/" + object
+
+	o, exists := mockup.objects[uri]
+	if !exists {
+		return fmt.Errorf("Object %s/%s not found", bucket, object)
+	}
+
+	if !more {
+		keyValueCommitNow(mockup, bucket, object)
+	}
+
+	for key := range valuesMap {
+		if more {
+			delete(o.recent, key)
+			o.recentDel = append(o.recentDel, key)
+		} else {
+			delete(o.keyValue, key)
+		}
+	}
+	return nil
+}
+
+// KeyValueDeleteJSON - delete key/value pairs defined by json
 func (mockup *Mockup) KeyValueDeleteJSON(bucket string, object string,
 	keyValueJSON string, more bool) error {
 	var uri = bucket + "/" + object
@@ -285,31 +339,31 @@ func (mockup *Mockup) KeyValueDeleteJSON(bucket string, object string,
 }
 
 // KeyValueGet - read object value field
-func (mockup *Mockup) KeyValueGet(bucket string, object string, key string) error {
+func (mockup *Mockup) KeyValueGet(bucket string, object string, key string) (string, error) {
 	var uri = bucket + "/" + object
 
 	o, exists := mockup.objects[uri]
 	if !exists {
-		return fmt.Errorf("Object %s/%s not found", bucket, object)
+		return "", fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 
-	v, e := o.keyValue[key]
+	_, e := o.keyValue[key]
 	if !e {
-		return fmt.Errorf("Object %s/%s key %s found", bucket, object, key)
+		return "", fmt.Errorf("Object %s/%s key %s found", bucket, object, key)
 	}
-	mockup.Value = v
-	return nil
+
+	return mockup.Value, nil
 }
 
 // KeyValueList - read key/value pairs, contentType: application/json or text/csv
 func (mockup *Mockup) KeyValueList(bucket string, object string,
-	from string, pattern string, contentType string, maxcount int, values bool) error {
+	from string, pattern string, contentType string, maxcount int, values bool) (string, error) {
 
 	var uri = bucket + "/" + object
 
 	o, exists := mockup.objects[uri]
 	if !exists {
-		return fmt.Errorf("Object %s/%s not found", bucket, object)
+		return "", fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 
 	keys := make([]string, 0, len(o.keyValue))
@@ -371,12 +425,11 @@ func (mockup *Mockup) KeyValueList(bucket string, object string,
 		b.WriteString("}")
 	}
 
-	mockup.Value = b.String()
-	return nil
+	return b.String(), nil
 }
 
 // BucketList - read bucket list
-func (mockup *Mockup) BucketList() ([]Bucket, error) {
+func (mockup *Mockup) BucketList() ([]s3xApi.Bucket, error) {
 	keys := make([]string, 0, len(mockup.buckets))
 
 	for k := range mockup.buckets {
@@ -384,7 +437,7 @@ func (mockup *Mockup) BucketList() ([]Bucket, error) {
 	}
 	sort.Strings(keys)
 
-	var buckets []Bucket
+	var buckets []s3xApi.Bucket
 	for i := range keys {
 		key := keys[i]
 		buckets = append(buckets, mockup.buckets[key])
@@ -394,9 +447,9 @@ func (mockup *Mockup) BucketList() ([]Bucket, error) {
 
 // ObjectList - read object list from bucket
 func (mockup *Mockup) ObjectList(bucket string,
-	from string, pattern string, maxcount int) ([]Object, error) {
+	from string, pattern string, maxcount int) ([]s3xApi.Object, error) {
 
-	var objects []Object
+	var objects []s3xApi.Object
 	keys := make([]string, 0, len(mockup.objects))
 
 	for k := range mockup.objects {
@@ -417,7 +470,7 @@ func (mockup *Mockup) ObjectList(bucket string,
 			continue
 		}
 
-		objects = append(objects, Object{Key: key, LastModified: t.Format(time.RFC3339), Size: 0})
+		objects = append(objects, s3xApi.Object{Key: key, LastModified: t.Format(time.RFC3339), Size: 0})
 		n++
 		if n == maxcount {
 			break
