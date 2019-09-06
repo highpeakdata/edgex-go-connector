@@ -363,7 +363,7 @@ func (mockup *Mockup) KeyValueList(bucket string, object string,
 
 	o, exists := mockup.objects[uri]
 	if !exists {
-		return "", fmt.Errorf("Object %s/%s not found", bucket, object)
+		return fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 
 	keys := make([]string, 0, len(o.keyValue))
@@ -378,7 +378,11 @@ func (mockup *Mockup) KeyValueList(bucket string, object string,
 	json := strings.Contains(contentType, "json")
 
 	if json {
-		b.WriteString("{")
+		if values {
+			b.WriteString("{")
+		} else {
+			b.WriteString("[")
+		}
 	}
 
 	n := 0
@@ -403,9 +407,10 @@ func (mockup *Mockup) KeyValueList(bucket string, object string,
 			}
 			b.WriteString(" \"")
 			b.WriteString(key)
-			b.WriteString("\": \"")
-			b.WriteString(value)
+			b.WriteString("\"")
 			if values {
+				b.WriteString(": \"")
+				b.WriteString(value)
 				b.WriteString("\"")
 			}
 		} else {
@@ -413,8 +418,10 @@ func (mockup *Mockup) KeyValueList(bucket string, object string,
 				b.WriteString("\n")
 			}
 			b.WriteString(key)
-			b.WriteString(";")
-			b.WriteString(value)
+			if values {
+				b.WriteString(";")
+				b.WriteString(value)
+			}
 		}
 
 		n++
@@ -424,7 +431,11 @@ func (mockup *Mockup) KeyValueList(bucket string, object string,
 	}
 
 	if json {
-		b.WriteString("}")
+		if values {
+			b.WriteString("}")
+		} else {
+			b.WriteString("]")
+		}
 	}
 
 	return b.String(), nil
