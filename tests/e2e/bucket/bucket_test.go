@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Nexenta/edgex-go-connector/pkg/utils"
+	"github.com/edgex-go-connector/pkg/utils"
 
-	s3xApi "github.com/Nexenta/edgex-go-connector/api/s3xclient/v1beta1"
-	v1beta1 "github.com/Nexenta/edgex-go-connector/pkg/s3xclient/v1beta1"
+	s3xApi "github.com/edgex-go-connector/api/s3xclient/v1beta1"
+	v1beta1 "github.com/edgex-go-connector/pkg/s3xclient/v1beta1"
 	"github.com/stretchr/testify/suite"
 )
 
