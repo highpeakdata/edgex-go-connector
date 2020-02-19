@@ -2,10 +2,9 @@ package object
 
 import (
 	"fmt"
-	"time"
 
-	s3xApi "github.com/Nexenta/edgex-go-connector/api/s3xclient/v1beta1"
-	s3xErrors "github.com/Nexenta/edgex-go-connector/pkg/errors"
+	s3xApi "github.com/edgex-go-connector/api/s3xclient/v1beta1"
+	s3xErrors "github.com/edgex-go-connector/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -31,23 +30,15 @@ func ObjectCreationFlow(suite suite.Suite, client s3xApi.S3xClient, bucket, obje
 	err = client.ObjectHead(bucket, object)
 	suite.Nil(err)
 
-	objects, err := client.ObjectList(bucket, "", "", 100)
-	suite.Nil(err)
-	// Need to discover how to compare struct by specific field
-	//suite.Contains(objects, s3xApi.Object{Name: object})
-	time.Sleep(30 * time.Second)
-	objectExistInList := false
-	fmt.Printf("%s Objects:\n", bucket)
-	for _, obj := range objects {
-		fmt.Printf("\t%s\n", obj.Key)
-		if obj.Key == object {
-			objectExistInList = true
-			break
-		}
+	// check object existance
+	err = client.ObjectHead(bucket, object)
+	// object not exist
+	objectExists := true
+	if err != nil {
+		objectExists = false
 	}
 
-	suite.Equal(true, objectExistInList, "Object should be presented on list")
-
+	suite.Equal(true, objectExists, "Object should be presented")
 }
 
 func ObjectDeletionFlow(suite suite.Suite, client s3xApi.S3xClient, bucket, object string) {

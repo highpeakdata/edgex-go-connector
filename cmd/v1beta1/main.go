@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	v1beta1 "github.com/Nexenta/edgex-go-connector/pkg/s3xclient/v1beta1"
+	v1beta1 "github.com/edgex-go-connector/pkg/s3xclient/v1beta1"
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	logrus "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
