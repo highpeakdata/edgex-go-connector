@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/Nexenta/edgex-go-connector/pkg/utils"
+	"github.com/edgex-go-connector/pkg/utils"
 )
 
 // KeyValueCommit - commit key/value insert/update/delete
