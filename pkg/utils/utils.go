@@ -16,7 +16,7 @@ const (
 )
 
 // EdgexTest - general Edgex client test structure
-type S3xClientTestConfig struct {
+type S3xClientConfig struct {
 	Mockup  int    `json:"mockup"`
 	Url     string `json:"url"`
 	Authkey string `json:"authkey"`
@@ -26,14 +26,14 @@ type S3xClientTestConfig struct {
 	//Debug   int    `json:"debug"`
 }
 
-func GetProdConfig(path string, configName string) (*S3xClientTestConfig, error) {
+func GetProdConfig(path string, configName string) (*S3xClientConfig, error) {
 
 	buf, err := ioutil.ReadFile(filepath.Join(path, configName))
 	if err != nil {
 		return nil, err
 	}
 
-	config := &S3xClientTestConfig{}
+	config := &S3xClientConfig{}
 	err = json.Unmarshal(buf, config)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func GetProdConfig(path string, configName string) (*S3xClientTestConfig, error)
 	return config, nil
 }
 
-func GetTestConfig() (*S3xClientTestConfig, error) {
+func GetTestConfig() (*S3xClientConfig, error) {
 
 	currentFolder, err := os.Getwd()
 	if err != nil {
@@ -60,7 +60,7 @@ func GetTestConfig() (*S3xClientTestConfig, error) {
 		return nil, err
 	}
 
-	config := &S3xClientTestConfig{}
+	config := &S3xClientConfig{}
 	err = json.Unmarshal(buf, config)
 	if err != nil {
 		return nil, err

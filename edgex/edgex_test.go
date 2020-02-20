@@ -19,7 +19,7 @@ const ()
 
 var (
 	s3x    s3xApi.S3xClient
-	config *utils.S3xClientTestConfig
+	config *utils.S3xClientConfig
 )
 
 func TestMain(m *testing.M) {
