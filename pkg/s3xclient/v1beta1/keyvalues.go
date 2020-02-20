@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strconv"
 
-	s3xApi "github.com/edgex-go-connector/api/s3xclient/v1beta1"
-	"github.com/edgex-go-connector/pkg/utils"
+	s3xApi "github.com/highpeakdata/edgex-go-connector/api/s3xclient/v1beta1"
+	"github.com/highpeakdata/edgex-go-connector/pkg/utils"
 )
 
 // KeyValueGet - read object value field
