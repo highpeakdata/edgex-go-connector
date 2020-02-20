@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	s3xApi "github.com/edgex-go-connector/api/s3xclient/v1beta1"
+	s3xApi "github.com/highpeakdata/edgex-go-connector/api/s3xclient/v1beta1"
 )
 
 type kvobj struct {

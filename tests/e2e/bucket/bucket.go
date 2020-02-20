@@ -3,8 +3,8 @@ package bucket
 import (
 	"fmt"
 
-	s3xApi "github.com/edgex-go-connector/api/s3xclient/v1beta1"
-	s3xErrors "github.com/edgex-go-connector/pkg/errors"
+	s3xApi "github.com/highpeakdata/edgex-go-connector/api/s3xclient/v1beta1"
+	s3xErrors "github.com/highpeakdata/edgex-go-connector/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
