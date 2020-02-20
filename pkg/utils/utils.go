@@ -54,8 +54,8 @@ func GetTestConfig() (*S3xClientTestConfig, error) {
 }
 
 // GetAbsRootProjectPath takes deeper project folder path, and retrive root's project path
-// I.e test path ~/go/src/github.com/Nexenta/edgex-go-connector/tests/e2e/bucket
-// Method return ~/go/src/github.com/Nexenta/edgex-go-connector
+// I.e test path ~/go/src/github.com/highpeakdata/edgex-go-connector/tests/e2e/bucket
+// Method return ~/go/src/github.com/highpeakdata/edgex-go-connector
 // Must be used in testing suites ONLY!
 func GetAbsRootProjectPath(deeperAbsPath string) (string, error) {
 

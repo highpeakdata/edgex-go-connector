@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	s3xApi "github.com/Nexenta/edgex-go-connector/api/s3xclient/v1beta1"
+	s3xApi "github.com/highpeakdata/edgex-go-connector/api/s3xclient/v1beta1"
 )
 
 type kvobj struct {
@@ -363,7 +363,7 @@ func (mockup *Mockup) KeyValueList(bucket string, object string,
 
 	o, exists := mockup.objects[uri]
 	if !exists {
-		return fmt.Errorf("Object %s/%s not found", bucket, object)
+		return "", fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 
 	keys := make([]string, 0, len(o.keyValue))

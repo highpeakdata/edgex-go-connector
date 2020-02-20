@@ -27,9 +27,9 @@ combined as one S3 emulated object.
 ## S3xClient Initialization
 
 ```go
-	s3xApi "github.com/Nexenta/edgex-go-connector/api/s3xclient/v1beta1"
-	s3xErrors "github.com/Nexenta/edgex-go-connector/pkg/errors"
-	v1beta1 "github.com/Nexenta/edgex-go-connector/pkg/s3xclient/v1beta1/"
+	s3xApi "github.com/highpeakdata/edgex-go-connector/api/s3xclient/v1beta1"
+	s3xErrors "github.com/highpeakdata/edgex-go-connector/pkg/errors"
+	v1beta1 "github.com/highpeakdata/edgex-go-connector/pkg/s3xclient/v1beta1/"
 	...
 
 	client, err := v1beta1.CreateEdgex("http://{s3x-service-ip:port}", {s3x-service-auth}, {s3x-service-secretKey})
@@ -57,6 +57,11 @@ combined as one S3 emulated object.
 ## S3xClient run specific test suite
 
 ```bash
+	#Before running tests edit test_setup.json
 	#For example we would start bucket creation/validation/deletion test
-	go test -timeout 30s github.com\Nexenta\edgex-go-connector\tests\e2e\bucket -run ^(TestEnd2EndBucketTestSuite)$ -v
+	go test -count=1 -timeout 60s github.com/highpeakdata/edgex-go-connector/tests/e2e/bucket -run TestEnd2EndBucketTestSuite -v
+	#Run object tests
+	go test -count=1 -timeout 60s github.com/highpeakdata/edgex-go-connector/tests/e2e/object -run TestEnd2EndObjectTestSuite -v
+	#Run key/value tests
+	go test -count=1 -timeout 60s github.com/highpeakdata/edgex-go-connector/tests/e2e/kv -run TestEnd2EndKVTestSuite -v
 ```

@@ -3,8 +3,8 @@ package bucket
 import (
 	"fmt"
 
-	s3xApi "github.com/Nexenta/edgex-go-connector/api/s3xclient/v1beta1"
-	s3xErrors "github.com/Nexenta/edgex-go-connector/pkg/errors"
+	s3xApi "github.com/highpeakdata/edgex-go-connector/api/s3xclient/v1beta1"
+	s3xErrors "github.com/highpeakdata/edgex-go-connector/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -59,13 +59,4 @@ func BucketDeletionFlow(suite suite.Suite, client s3xApi.S3xClient, bucket strin
 	// deleting existing bucket
 	err = client.BucketDelete(bucket)
 	suite.Nil(err)
-
-	// check bucket existance
-	err = client.BucketHead(bucket)
-	// bucket not exist
-	if suite.Error(err) {
-		// should be ErrBucketNotExist error
-		suite.Equal(s3xErrors.ErrBucketNotExist, err)
-
-	}
 }

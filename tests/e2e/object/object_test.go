@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	s3xApi "github.com/Nexenta/edgex-go-connector/api/s3xclient/v1beta1"
-	v1beta1 "github.com/Nexenta/edgex-go-connector/pkg/s3xclient/v1beta1"
-	"github.com/Nexenta/edgex-go-connector/pkg/utils"
-	"github.com/Nexenta/edgex-go-connector/tests/e2e/bucket"
+	s3xApi "github.com/highpeakdata/edgex-go-connector/api/s3xclient/v1beta1"
+	v1beta1 "github.com/highpeakdata/edgex-go-connector/pkg/s3xclient/v1beta1"
+	"github.com/highpeakdata/edgex-go-connector/pkg/utils"
+	"github.com/highpeakdata/edgex-go-connector/tests/e2e/bucket"
 	"github.com/stretchr/testify/suite"
 )
 
