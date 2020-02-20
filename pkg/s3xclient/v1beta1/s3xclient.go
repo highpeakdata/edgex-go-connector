@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	s3xApi "github.com/edgex-go-connector/api/s3xclient/v1beta1"
+	s3xApi "github.com/highpeakdata/edgex-go-connector/api/s3xclient/v1beta1"
 )
 
 // Edgex - Edgex is S3xClient implementation
