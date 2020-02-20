@@ -26,6 +26,21 @@ type S3xClientTestConfig struct {
 	//Debug   int    `json:"debug"`
 }
 
+func GetProdConfig(path string, configName string) (*S3xClientTestConfig, error) {
+
+	buf, err := ioutil.ReadFile(filepath.Join(path, configName))
+	if err != nil {
+		return nil, err
+	}
+
+	config := &S3xClientTestConfig{}
+	err = json.Unmarshal(buf, config)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
 func GetTestConfig() (*S3xClientTestConfig, error) {
 
 	currentFolder, err := os.Getwd()
