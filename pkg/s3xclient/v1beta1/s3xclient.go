@@ -20,6 +20,9 @@ type Edgex struct {
 	Authkey string
 	Secret  string
 
+	// Debug level
+	Debug int
+
 	// Should move to Tx struct
 	Sid string
 }
@@ -58,7 +61,7 @@ func SetHTTPClient(httpClient *http.Client) EdgexOption {
 }
 
 // CreateEdgex - S3X client factory
-func CreateEdgex(s3xurl, authkey, secret string, options ...EdgexOption) (s3xApi.S3xClient, error) {
+func CreateEdgex(s3xurl, authkey, secret string, debug int, options ...EdgexOption) (s3xApi.S3xClient, error) {
 	url, err := getValidUrl(s3xurl)
 	if err != nil {
 		return nil, err
@@ -68,6 +71,7 @@ func CreateEdgex(s3xurl, authkey, secret string, options ...EdgexOption) (s3xApi
 		baseUrl:    url,
 		Authkey:    authkey,
 		Secret:     secret,
+		Debug:      debug,
 		httpClient: &http.Client{Timeout: 45 * time.Second},
 	}
 

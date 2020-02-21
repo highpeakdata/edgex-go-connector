@@ -44,10 +44,10 @@ func TestMain(m *testing.M) {
 
 	if config.Mockup == 1 {
 		log.Println("Create Edgex mockup")
-		s3x = mock.CreateMockup(1)
+		s3x = mock.CreateMockup(config.Debug)
 	} else {
 		log.Printf("Create Edgex: %+v\n", config)
-		s3x, err = v1beta1.CreateEdgex(config.Url, config.Authkey, config.Secret)
+		s3x, err = v1beta1.CreateEdgex(config.Url, config.Authkey, config.Secret, config.Debug)
 		log.Printf("s3x : %+v\n", s3x)
 		if err != nil {
 			log.Println("Error creating v1beta1.Edgex", err)

@@ -25,7 +25,9 @@ func (edgex *Edgex) KeyValueGet(bucket, object, key string) (string, error) {
 		"key":  key,
 	})
 
-	fmt.Printf("KeyValueGet request: %s\n", s3xurl.String())
+	if edgex.Debug > 0 {
+		fmt.Printf("KeyValueGet request: %s\n", s3xurl.String())
+	}
 	res, err := http.Get(s3xurl.String())
 	if err != nil {
 		fmt.Printf("Object Get error: %v\n", err)
@@ -33,7 +35,9 @@ func (edgex *Edgex) KeyValueGet(bucket, object, key string) (string, error) {
 	}
 
 	defer res.Body.Close()
-	fmt.Printf("KeyValueGet response: %+v\n", res)
+	if edgex.Debug > 0 {
+		fmt.Printf("KeyValueGet response: %+v\n", res)
+	}
 
 	if res.StatusCode < 300 {
 		body, err := ioutil.ReadAll(res.Body)
@@ -144,14 +148,19 @@ func (edgex *Edgex) KeyValueMapPost(bucket, object string, values s3xApi.S3xKVMa
 		req.Header.Add("x-session-id", edgex.Sid)
 	}
 
-	fmt.Printf("KeyValuePostMap request: %+v\n", req)
+	if edgex.Debug > 0 {
+		fmt.Printf("KeyValuePostMap request: %+v\n", req)
+	}
 	res, err := edgex.httpClient.Do(req)
 	if err != nil {
 		fmt.Printf("k/v json post error: %v\n", err)
 		return err
 	}
 	defer res.Body.Close()
-	fmt.Printf("KeyValuePostMap response: %+v\n", res)
+
+	if edgex.Debug > 0 {
+		fmt.Printf("KeyValuePostMap response: %+v\n", res)
+	}
 
 	if res.StatusCode < 300 {
 		sid := res.Header.Get("X-Session-Id")
@@ -249,14 +258,19 @@ func (edgex *Edgex) KeyValuePostJSON(bucket, object, keyValueJSON string, more b
 		req.Header.Add("x-session-id", edgex.Sid)
 	}
 
-	fmt.Printf("KeyValuePostJSON request: %+v\n", req)
+	if edgex.Debug > 0 {
+		fmt.Printf("KeyValuePostJSON request: %+v\n", req)
+	}
 	res, err := edgex.httpClient.Do(req)
 	if err != nil {
 		fmt.Printf("k/v json post error: %v\n", err)
 		return err
 	}
 	defer res.Body.Close()
-	fmt.Printf("KeyValuePostJSON response: %+v\n", res)
+
+	if edgex.Debug > 0 {
+		fmt.Printf("KeyValuePostJSON response: %+v\n", res)
+	}
 
 	if res.StatusCode < 300 {
 		sid := res.Header.Get("X-Session-Id")

@@ -51,7 +51,7 @@ func (suite *e2eObjectTestSuite) SetupSuite() {
 		log.Println("Create Edgex mockup")
 		suite.s3x = mock.CreateMockup(1)
 	} else {
-		client, err := v1beta1.CreateEdgex(testConfig.Url, testConfig.Authkey, testConfig.Secret)
+		client, err := v1beta1.CreateEdgex(testConfig.Url, testConfig.Authkey, testConfig.Secret, 1)
 		if err != nil {
 			log.Printf("Failed to create Edgex client: %v", err)
 			os.Exit(1)

@@ -32,7 +32,7 @@ combined as one S3 emulated object.
 	v1beta1 "github.com/highpeakdata/edgex-go-connector/pkg/s3xclient/v1beta1/"
 	...
 
-	client, err := v1beta1.CreateEdgex("http://{s3x-service-ip:port}", {s3x-service-auth}, {s3x-service-secretKey})
+	client, err := v1beta1.CreateEdgex("http://{s3x-service-ip:port}", {s3x-service-auth}, {s3x-service-secretKey}, {debug})
 	if err != nil {
 		log.Printf("Failed to create Edgex client: %v", err)
 		os.Exit(1)

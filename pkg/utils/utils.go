@@ -23,7 +23,7 @@ type S3xClientConfig struct {
 	Secret  string `json:"secret"`
 	Bucket  string `json:"bucket"`
 	Object  string `json:"object"`
-	//Debug   int    `json:"debug"`
+	Debug   int    `json:"debug"`
 }
 
 func GetProdConfig(path string, configName string) (*S3xClientConfig, error) {

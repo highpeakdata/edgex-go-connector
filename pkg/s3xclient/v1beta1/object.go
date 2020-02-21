@@ -152,7 +152,9 @@ func (edgex *Edgex) ObjectList(bucket, from, pattern string, maxcount int) ([]s3
 		return list.Objects, err
 	}
 
-	fmt.Printf("ObjectList request: %+v", req)
+	if edgex.Debug > 0 {
+		fmt.Printf("ObjectList request: %+v", req)
+	}
 	req.Header.Add("Content-Length", "0")
 	res, err := client.Do(req)
 	if err != nil {
@@ -161,7 +163,9 @@ func (edgex *Edgex) ObjectList(bucket, from, pattern string, maxcount int) ([]s3
 	}
 	defer res.Body.Close()
 
-	fmt.Printf("ObjectList response: %+v", res)
+	if edgex.Debug > 0 {
+		fmt.Printf("ObjectList response: %+v", res)
+	}
 	if res.StatusCode < 300 {
 		body, err := ioutil.ReadAll(res.Body)
 		if err != nil {
