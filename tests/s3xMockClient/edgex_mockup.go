@@ -9,6 +9,7 @@ import (
 	"time"
 
 	s3xApi "github.com/highpeakdata/edgex-go-connector/api/s3xclient/v1beta1"
+	s3xErrors "github.com/highpeakdata/edgex-go-connector/pkg/errors"
 )
 
 type kvobj struct {
@@ -146,7 +147,7 @@ func (mockup *Mockup) ObjectHead(bucket string, object string) error {
 	if exists {
 		return nil
 	}
-	return fmt.Errorf("Object %s/%s not found", bucket, object)
+	return s3xErrors.ErrObjectNotExist
 }
 
 // BucketHead - read bucket header fields
@@ -155,7 +156,7 @@ func (mockup *Mockup) BucketHead(bucket string) error {
 	if exists {
 		return nil
 	}
-	return fmt.Errorf("Bucket %s not found", bucket)
+	return s3xErrors.ErrBucketNotExist
 }
 
 func (mockup *Mockup) KeyValueMapPost(bucket, object string, valuesMap s3xApi.S3xKVMap, more bool) error {
@@ -347,12 +348,13 @@ func (mockup *Mockup) KeyValueGet(bucket string, object string, key string) (str
 		return "", fmt.Errorf("Object %s/%s not found", bucket, object)
 	}
 
-	_, e := o.keyValue[key]
+	v, e := o.keyValue[key]
 	if !e {
 		return "", fmt.Errorf("Object %s/%s key %s found", bucket, object, key)
 	}
 
-	return mockup.Value, nil
+	mockup.Value = v
+	return v, nil
 }
 
 // KeyValueList - read key/value pairs, contentType: application/json or text/csv

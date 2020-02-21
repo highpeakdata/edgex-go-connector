@@ -10,6 +10,8 @@ import (
 
 	s3xApi "github.com/highpeakdata/edgex-go-connector/api/s3xclient/v1beta1"
 	v1beta1 "github.com/highpeakdata/edgex-go-connector/pkg/s3xclient/v1beta1"
+	mock "github.com/highpeakdata/edgex-go-connector/tests/s3xMockClient"
+
 	"github.com/highpeakdata/edgex-go-connector/pkg/utils"
 	"github.com/highpeakdata/edgex-go-connector/tests/e2e/bucket"
 	"github.com/stretchr/testify/suite"
@@ -45,13 +47,17 @@ func (suite *e2eObjectTestSuite) SetupSuite() {
 		suite.Object = fmt.Sprintf("obj-%d", rand.Intn(10000))
 	}
 
-	client, err := v1beta1.CreateEdgex(testConfig.Url, testConfig.Authkey, testConfig.Secret)
-	if err != nil {
-		log.Printf("Failed to create Edgex client: %v", err)
-		os.Exit(1)
+	if testConfig.Mockup == 1 {
+		log.Println("Create Edgex mockup")
+		suite.s3x = mock.CreateMockup(1)
+	} else {
+		client, err := v1beta1.CreateEdgex(testConfig.Url, testConfig.Authkey, testConfig.Secret)
+		if err != nil {
+			log.Printf("Failed to create Edgex client: %v", err)
+			os.Exit(1)
+		}
+		suite.s3x = client
 	}
-
-	suite.s3x = client
 
 }
 
