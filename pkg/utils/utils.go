@@ -41,6 +41,13 @@ func GetProdConfig(path string, configName string) (*S3xClientConfig, error) {
 	return config, nil
 }
 
+func GetDefaultConfig() *S3xClientConfig {
+	config := &S3xClientConfig{}
+	config.Mockup = 1
+	config.Url = "127.0.0.1:4000"
+	return config
+}
+
 func GetTestConfig() (*S3xClientConfig, error) {
 
 	currentFolder, err := os.Getwd()
