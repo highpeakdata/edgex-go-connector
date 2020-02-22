@@ -119,8 +119,12 @@ func TestNotObjectHead(t *testing.T) {
 }
 
 func TestKeyValuePost(t *testing.T) {
+	err := s3x.KeyValuePost(config.Bucket, config.Object, "key@0", bytes.NewBufferString("value0"), "", false)
+	if err != nil {
+		t.Fatal("K/V object post1 error", err)
+	}
 
-	err := s3x.KeyValuePost(config.Bucket, config.Object, "key1", bytes.NewBufferString("value1"), "", false)
+	err = s3x.KeyValuePost(config.Bucket, config.Object, "key1", bytes.NewBufferString("value1"), "", false)
 	if err != nil {
 		t.Fatal("K/V object post1 error", err)
 	}
@@ -179,8 +183,14 @@ func TestKeyValuePostCVS(t *testing.T) {
 }
 
 func TestKeyValueGet(t *testing.T) {
-	key := "key1"
+	key := "key@0"
 	value, err := s3x.KeyValueGet(config.Bucket, config.Object, key)
+	if err != nil {
+		t.Fatal("K/V object get error", err)
+	}
+	fmt.Printf("K/V get key: %s, value : %s\n", key, value)
+	key = "key1"
+	value, err = s3x.KeyValueGet(config.Bucket, config.Object, key)
 	if err != nil {
 		t.Fatal("K/V object get error", err)
 	}
@@ -275,7 +285,7 @@ func TestObjectList(t *testing.T) {
 }
 
 func TestKeyValueDelete(t *testing.T) {
-	key := "key5"
+	key := "key@0"
 	err := s3x.KeyValueDelete(config.Bucket, config.Object, key, false)
 	if err != nil {
 		t.Fatal("K/V object delete error", err)

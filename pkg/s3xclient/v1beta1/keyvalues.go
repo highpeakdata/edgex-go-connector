@@ -12,6 +12,10 @@ import (
 	"github.com/highpeakdata/edgex-go-connector/pkg/utils"
 )
 
+func addKey(req string, key string) string {
+	return req + "&key=" + key
+}
+
 // KeyValueGet - read object value field
 func (edgex *Edgex) KeyValueGet(bucket, object, key string) (string, error) {
 	objectPath, err := utils.GetObjectPath(bucket, object)
@@ -22,13 +26,13 @@ func (edgex *Edgex) KeyValueGet(bucket, object, key string) (string, error) {
 	s3xurl := edgex.newS3xURL(objectPath)
 	s3xurl.AddOptions(S3XURLOptions{
 		"comp": "kvget",
-		"key":  key,
 	})
 
+	rq := addKey(s3xurl.String(), key)
 	if edgex.Debug > 0 {
-		fmt.Printf("KeyValueGet request: %s\n", s3xurl.String())
+		fmt.Printf("KeyValueGet request: %s\n", rq)
 	}
-	res, err := http.Get(s3xurl.String())
+	res, err := http.Get(rq)
 	if err != nil {
 		fmt.Printf("Object Get error: %v\n", err)
 		return "", err
@@ -64,7 +68,6 @@ func (edgex *Edgex) KeyValuePost(bucket, object, key string, value *bytes.Buffer
 	s3xurl := edgex.newS3xURL(objectPath)
 	s3xurl.AddOptions(S3XURLOptions{
 		"comp": "kv",
-		"key":  key,
 	})
 
 	if !more {
@@ -78,7 +81,12 @@ func (edgex *Edgex) KeyValuePost(bucket, object, key string, value *bytes.Buffer
 		})
 	}
 
-	req, err := http.NewRequest("POST", s3xurl.String(), value)
+	rq := addKey(s3xurl.String(), key)
+	if edgex.Debug > 0 {
+		fmt.Printf("KeyValuePost request: %s\n", rq)
+	}
+
+	req, err := http.NewRequest("POST", rq, value)
 	if err != nil {
 		fmt.Printf("k/v create key/value post error: %v\n", err)
 		return err
@@ -339,7 +347,6 @@ func (edgex *Edgex) KeyValueDelete(bucket, object, key string, more bool) error 
 	s3xurl := edgex.newS3xURL(objectPath)
 	s3xurl.AddOptions(S3XURLOptions{
 		"comp": "kv",
-		"key":  key,
 	})
 
 	if !more {
@@ -353,7 +360,12 @@ func (edgex *Edgex) KeyValueDelete(bucket, object, key string, more bool) error 
 		})
 	}
 
-	req, err := http.NewRequest("DELETE", s3xurl.String(), nil)
+	rq := addKey(s3xurl.String(), key)
+	if edgex.Debug > 0 {
+		fmt.Printf("KeyValueDelete request: %s\n", rq)
+	}
+
+	req, err := http.NewRequest("DELETE", rq, nil)
 	if err != nil {
 		fmt.Printf("k/v delete key/value error: %v\n", err)
 		return err
@@ -440,12 +452,6 @@ func (edgex *Edgex) KeyValueList(bucket, object, from, pattern, contentType stri
 		"comp": "kv",
 	})
 
-	if from != "" {
-		s3xurl.AddOptions(S3XURLOptions{
-			"key": from,
-		})
-	}
-
 	if pattern != "" {
 		s3xurl.AddOptions(S3XURLOptions{
 			"pattern": pattern,
@@ -465,7 +471,16 @@ func (edgex *Edgex) KeyValueList(bucket, object, from, pattern, contentType stri
 		})
 	}
 
-	req, err := http.NewRequest("GET", s3xurl.String(), nil)
+	rq := s3xurl.String()
+	if from != "" {
+		rq = addKey(s3xurl.String(), from)
+	}
+
+	if edgex.Debug > 0 {
+		fmt.Printf("KeyValueList request: %s\n", rq)
+	}
+
+	req, err := http.NewRequest("GET", rq, nil)
 	if err != nil {
 		fmt.Printf("k/v create key/value list error: %v\n", err)
 		return "", err
