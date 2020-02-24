@@ -452,12 +452,6 @@ func (edgex *Edgex) KeyValueList(bucket, object, from, pattern, contentType stri
 		"comp": "kv",
 	})
 
-	if pattern != "" {
-		s3xurl.AddOptions(S3XURLOptions{
-			"pattern": pattern,
-		})
-	}
-
 	if maxcount > 0 {
 		s3xurl.AddOptions(S3XURLOptions{
 			"maxresults": strconv.Itoa(maxcount),
@@ -474,6 +468,10 @@ func (edgex *Edgex) KeyValueList(bucket, object, from, pattern, contentType stri
 	rq := s3xurl.String()
 	if from != "" {
 		rq = addKey(s3xurl.String(), from)
+	}
+
+	if pattern != "" {
+		rq = addKey(rq, pattern)
 	}
 
 	if edgex.Debug > 0 {
