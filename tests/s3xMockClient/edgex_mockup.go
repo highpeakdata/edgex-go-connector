@@ -67,7 +67,7 @@ func (mockup *Mockup) ObjectCreate(bucket string, object string, objectType s3xA
 
 	_, exists := mockup.buckets[bucket]
 	if !exists {
-		return fmt.Errorf("%s bucket not found", bucket)
+		mockup.BucketCreate(bucket)
 	}
 
 	var uri = bucket + "/" + object
