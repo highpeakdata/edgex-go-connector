@@ -121,7 +121,8 @@ func (mockup *Mockup) ObjectCreate(bucket string, object string, objectType s3xA
 
 	_, exists := mockup.Buckets[bucket]
 	if !exists {
-		mockup.BucketCreate(bucket)
+		t := time.Now()
+		mockup.Buckets[bucket] = s3xApi.Bucket{Name: bucket, CreationDate: t.Format(time.RFC3339)}
 	}
 
 	var uri = bucket + "/" + object
