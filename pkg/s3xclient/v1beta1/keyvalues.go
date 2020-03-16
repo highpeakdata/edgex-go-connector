@@ -471,7 +471,7 @@ func (edgex *Edgex) KeyValueList(bucket, object, from, pattern, contentType stri
 	}
 
 	if pattern != "" {
-		rq = addKey(rq, pattern)
+		rq = rq + "&pattern=" + pattern
 	}
 
 	if edgex.Debug > 0 {
