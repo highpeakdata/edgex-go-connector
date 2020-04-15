@@ -80,4 +80,5 @@ func (suite *e2eObjectTestSuite) TearDownTest() {
 func (suite *e2eObjectTestSuite) TestObjectFlow() {
 	ObjectCreationFlow(suite.Suite, suite.s3x, suite.Bucket, suite.Object)
 	ObjectDeletionFlow(suite.Suite, suite.s3x, suite.Bucket, suite.Object)
+	ObjectStreamFlow(suite.Suite, suite.s3x, suite.Bucket, suite.Object)
 }
