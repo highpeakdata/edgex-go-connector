@@ -1,8 +1,19 @@
 package v1beta1
 
-import "bytes"
+import (
+	"bytes"
+	"io"
+)
 
 type S3xKVMap map[string]interface{}
+
+type ObjectStream interface {
+	io.Reader
+	io.Writer
+	io.Seeker
+	io.Closer
+}
+
 type S3xClient interface {
 
 	// Lists all buckets in system
@@ -19,6 +30,7 @@ type S3xClient interface {
 	// KeyValue Object related operations
 	ObjectHead(bucket, object string) error
 	ObjectCreate(bucket, object string, objectType ObjectType, contentType string, chunkSize int, btreeOrder int) error
+	ObjectGetStream(bucket, object string) (ObjectStream, error)
 	ObjectDelete(bucket, object string) error
 
 	// Single key operations

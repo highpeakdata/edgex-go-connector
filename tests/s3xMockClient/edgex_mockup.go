@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -15,10 +17,12 @@ import (
 )
 
 var (
-	mockupPath string = "/tmp/hpdcdb.json"
+	mockupPath    string = "/tmp/hpdcdb.json"
+	streamFileDir string = "/tmp/hpdstream/"
 )
 
 type kvobj struct {
+	stream    bool
 	KeyValue  map[string]string `json:"keyValue"`
 	recent    map[string]string `json:"-"`
 	recentDel []string          `json:"-"`
@@ -35,6 +39,60 @@ type Mockup struct {
 	Object string `json:"-"`
 	Sid    string `json:"-"`
 	Debug  int    `json:"-"`
+}
+
+type MockupObjectStream struct {
+	h      *os.File
+	path   string
+	offset int
+	size   int
+	dirty  bool
+}
+
+func (m *MockupObjectStream) Read(p []byte) (int, error) {
+	n, err := m.h.ReadAt(p, int64(m.offset))
+	if n == 0 && err != nil {
+		return 0, err
+	}
+	m.offset += n
+	return n, nil
+}
+
+func (m *MockupObjectStream) Write(p []byte) (int, error) {
+	n, err := m.h.WriteAt(p, int64(m.offset))
+	if err != nil {
+		return 0, err
+	}
+	if n+m.offset > m.size {
+		m.size = n + m.offset
+	}
+	m.offset += n
+	m.dirty = true
+	return n, nil
+}
+
+func (s *MockupObjectStream) Seek(offset int64, whence int) (int64, error) {
+	newPos := 0
+	if whence == io.SeekCurrent {
+		newPos = s.offset + int(offset)
+	} else if whence == io.SeekEnd {
+		newPos = s.size + int(offset)
+	} else if whence == io.SeekStart {
+		newPos = int(offset)
+	}
+	if newPos > s.size || newPos < 0 {
+		return 0, fmt.Errorf("Invalid offset %v", offset)
+	}
+	s.offset = newPos
+	return int64(newPos), nil
+}
+
+func (s *MockupObjectStream) Close() error {
+	err := s.h.Close()
+	if err != nil {
+		return fmt.Errorf("MockupObjectStream::Close() file %v IO error: %v", s.path, err)
+	}
+	return nil
 }
 
 // CreateMockup - client structure constructor
@@ -132,8 +190,24 @@ func (mockup *Mockup) ObjectCreate(bucket string, object string, objectType s3xA
 	}
 
 	var kv kvobj
-	kv.KeyValue = make(map[string]string)
-	kv.recent = make(map[string]string)
+	if objectType == s3xApi.OBJECT_TYPE_KEY_VALUE {
+		kv.KeyValue = make(map[string]string)
+		kv.recent = make(map[string]string)
+		kv.stream = false
+	} else {
+		dir := streamFileDir + bucket
+		err := os.MkdirAll(dir, 0777)
+		if err != nil {
+			return fmt.Errorf("Couldn't crete folder %v: %v", dir, err)
+		}
+		f, err := os.OpenFile(streamFileDir+uri, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			return fmt.Errorf("Couldn't create file %v: %v", streamFileDir+uri, err)
+		}
+		defer f.Close()
+		kv.stream = true
+		fmt.Printf("File created %v\n", streamFileDir+uri)
+	}
 	mockup.Objects[uri] = kv
 	return keyValueSync(mockup)
 }
@@ -165,11 +239,47 @@ func (mockup *Mockup) KeyValueRollback(bucket string, object string) error {
 
 // ObjectDelete - delete object
 func (mockup *Mockup) ObjectDelete(bucket string, object string) error {
+	var err error
 	mockup.lock.Lock()
 	defer mockup.lock.Unlock()
 	var uri = bucket + "/" + object
-	delete(mockup.Objects, uri)
-	return keyValueSync(mockup)
+	kv := mockup.Objects[uri]
+	if kv.stream {
+		os.Remove(streamFileDir + uri)
+		err = nil
+	} else {
+		delete(mockup.Objects, uri)
+		err = keyValueSync(mockup)
+	}
+	return err
+}
+
+func (mockup *Mockup) ObjectGetStream(bucket, object string) (s3xApi.ObjectStream, error) {
+	var path = bucket + "/" + object
+
+	kv, exists := mockup.Objects[path]
+	if !exists {
+		return nil, fmt.Errorf("ObjectGetStream() Object %v doesn't exist", path)
+	}
+	if !kv.stream {
+		return nil, fmt.Errorf("ObjectGetStream() Object %v doesn't support stream operations", path)
+	}
+	path = streamFileDir + path
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("ObjectGetStream() Internal: file %v doesn't support stream operations", path)
+	}
+	rc := &MockupObjectStream{
+		path:   path,
+		offset: 0,
+		size:   int(info.Size()),
+		dirty:  false,
+	}
+	rc.h, err = os.OpenFile(rc.path, os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		return nil, fmt.Errorf("Mockup::ObjectGetStream() couldn't open file %v", rc.path)
+	}
+	return rc, nil
 }
 
 // BucketDelete - delete bucket

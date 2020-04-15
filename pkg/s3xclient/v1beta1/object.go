@@ -1,8 +1,10 @@
 package v1beta1
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -12,6 +14,169 @@ import (
 
 	"github.com/highpeakdata/edgex-go-connector/pkg/utils"
 )
+
+type s3xObjectStream struct {
+	edgex     *Edgex
+	path      string
+	sessionID string
+	offset    int
+	size      int
+	dirty     bool
+}
+
+func (s *s3xObjectStream) Read(p []byte) (n int, err error) {
+	contentLen := len(p)
+	if s.offset+contentLen > s.size {
+		contentLen = s.size - s.offset
+	}
+	if contentLen == 0 {
+		return 0, nil
+	}
+	s3xurl := s.edgex.newS3xURL(s.path)
+	s3xurl.AddOptions(S3XURLOptions{
+		"comp": "streamsession",
+	})
+	req, err := http.NewRequest("GET", s3xurl.String(), nil)
+	if err != nil {
+		return 0, fmt.Errorf("StreamRead create GET error: %v", err)
+	}
+
+	req.Header.Add("x-session-id", s.sessionID)
+	req.Header.Add("x-ccow-offset", strconv.Itoa(s.offset))
+	req.Header.Add("x-ccow-length", strconv.Itoa(contentLen))
+
+	res, err := s.edgex.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("StreamRead GET error: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 300 {
+		return 0, fmt.Errorf("StreamRead GET Status code %v", res.StatusCode)
+	}
+	n, err = res.Body.Read(p)
+	if err == nil {
+		s.offset += n
+		newID := res.Header.Get("x-session-id")
+		if newID != s.sessionID {
+			fmt.Printf("New SessionID on Read: %v\n", newID)
+			s.sessionID = newID
+		}
+	}
+	return n, err
+}
+
+func (s *s3xObjectStream) Write(p []byte) (n int, err error) {
+	size := len(p)
+	if size == 0 {
+		return 0, nil
+	}
+	s3xurl := s.edgex.newS3xURL(s.path)
+	s3xurl.AddOptions(S3XURLOptions{
+		"comp": "streamsession",
+	})
+	req, err := http.NewRequest("POST", s3xurl.String(), bytes.NewBuffer(p))
+	if err != nil {
+		return 0, fmt.Errorf("StreamWrite create POST error: %v", err)
+	}
+
+	req.Header.Add("x-session-id", s.sessionID)
+	req.Header.Add("x-ccow-offset", strconv.Itoa(int(s.offset)))
+	req.Header.Add("x-ccow-length", strconv.Itoa(int(size)))
+
+	res, err := s.edgex.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("StreamWrite POST error: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 300 {
+		return 0, fmt.Errorf("StreamWrite POST Status code %v", res.StatusCode)
+	}
+
+	if s.offset+size > s.size {
+		s.size = s.offset + size
+	}
+	s.offset += size
+	s.dirty = true
+	newID := res.Header.Get("x-session-id")
+	if newID != s.sessionID {
+		fmt.Printf("New SessionID on Write: %v\n", newID)
+		s.sessionID = newID
+	}
+	return size, nil
+}
+
+func (s *s3xObjectStream) Seek(offset int64, whence int) (int64, error) {
+	newPos := 0
+	if whence == io.SeekCurrent {
+		newPos = s.offset + int(offset)
+	} else if whence == io.SeekEnd {
+		newPos = s.size + int(offset)
+	} else if whence == io.SeekStart {
+		newPos = int(offset)
+	}
+	if newPos > s.size || newPos < 0 {
+		return 0, fmt.Errorf("Invalid offset %v", offset)
+	}
+	s.offset = newPos
+	return int64(newPos), nil
+}
+
+func (s *s3xObjectStream) Close() error {
+	s3xurl := s.edgex.newS3xURL(s.path)
+	s3xurl.AddOptions(S3XURLOptions{
+		"comp": "streamsession",
+	})
+	if s.dirty {
+		s3xurl.AddOptions(S3XURLOptions{
+			"finalize": "",
+		})
+	} else {
+		s3xurl.AddOptions(S3XURLOptions{
+			"cancel": "",
+		})
+	}
+	_, err := http.NewRequest("HEAD", s3xurl.String(), nil)
+	if err != nil {
+		return fmt.Errorf("StreamClose create HEAD error: %v", err)
+	}
+	return nil
+}
+
+func (edgex *Edgex) ObjectGetStream(bucket, object string) (s3xApi.ObjectStream, error) {
+	objectPath, err := utils.GetObjectPath(bucket, object)
+	if err != nil {
+		return nil, err
+	}
+
+	s3xurl := edgex.newS3xURL(objectPath)
+	s3xurl.AddOptions(S3XURLOptions{
+		"comp": "streamsession",
+	})
+
+	res, err := http.Head(s3xurl.String())
+	if err != nil {
+		fmt.Printf("Object Head error: %v\n", err)
+		return nil, err
+	}
+
+	if res.StatusCode == 404 {
+		return nil, s3xErrors.ErrObjectNotExist
+	}
+	if res.StatusCode >= 300 {
+		return nil, fmt.Errorf("Object %s/ head error: %v", objectPath, err)
+	}
+	sizeStr := res.Header.Get("x-ccow-logical-size")
+	size := 0
+	if len(sizeStr) > 0 {
+		size, _ = strconv.Atoi(sizeStr)
+	}
+	return &s3xObjectStream{
+		edgex:     edgex,
+		sessionID: res.Header.Get("x-session-id"),
+		path:      objectPath,
+		offset:    size,
+	}, nil
+}
 
 // ObjectCreate - create key/value object
 func (edgex *Edgex) ObjectCreate(bucket, object string, objectType s3xApi.ObjectType, contentType string, chunkSize int, btreeOrder int) error {
