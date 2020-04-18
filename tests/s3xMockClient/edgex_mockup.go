@@ -22,7 +22,7 @@ var (
 )
 
 type kvobj struct {
-	stream    bool
+	Stream    bool              `json:"stream"`
 	KeyValue  map[string]string `json:"keyValue"`
 	recent    map[string]string `json:"-"`
 	recentDel []string          `json:"-"`
@@ -193,7 +193,7 @@ func (mockup *Mockup) ObjectCreate(bucket string, object string, objectType s3xA
 	if objectType == s3xApi.OBJECT_TYPE_KEY_VALUE {
 		kv.KeyValue = make(map[string]string)
 		kv.recent = make(map[string]string)
-		kv.stream = false
+		kv.Stream = false
 	} else {
 		dir := streamFileDir + bucket
 		err := os.MkdirAll(dir, 0777)
@@ -205,7 +205,7 @@ func (mockup *Mockup) ObjectCreate(bucket string, object string, objectType s3xA
 			return fmt.Errorf("Couldn't create file %v: %v", streamFileDir+uri, err)
 		}
 		defer f.Close()
-		kv.stream = true
+		kv.Stream = true
 		fmt.Printf("File created %v\n", streamFileDir+uri)
 	}
 	mockup.Objects[uri] = kv
@@ -244,7 +244,7 @@ func (mockup *Mockup) ObjectDelete(bucket string, object string) error {
 	defer mockup.lock.Unlock()
 	var uri = bucket + "/" + object
 	kv := mockup.Objects[uri]
-	if kv.stream {
+	if kv.Stream {
 		os.Remove(streamFileDir + uri)
 		err = nil
 	} else {
@@ -261,7 +261,7 @@ func (mockup *Mockup) ObjectGetStream(bucket, object string) (s3xApi.ObjectStrea
 	if !exists {
 		return nil, fmt.Errorf("ObjectGetStream() Object %v doesn't exist", path)
 	}
-	if !kv.stream {
+	if !kv.Stream {
 		return nil, fmt.Errorf("ObjectGetStream() Object %v doesn't support stream operations", path)
 	}
 	path = streamFileDir + path
