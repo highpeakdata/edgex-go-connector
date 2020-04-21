@@ -58,7 +58,6 @@ func (s *s3xObjectStream) Read(p []byte) (n int, err error) {
 		s.offset += n
 		newID := res.Header.Get("x-session-id")
 		if newID != s.sessionID {
-			fmt.Printf("New SessionID on Read: %v\n", newID)
 			s.sessionID = newID
 		}
 	}
@@ -72,7 +71,8 @@ func (s *s3xObjectStream) Write(p []byte) (n int, err error) {
 	}
 	s3xurl := s.edgex.newS3xURL(s.path)
 	s3xurl.AddOptions(S3XURLOptions{
-		"comp": "streamsession",
+		"comp":     "streamsession",
+		"finalize": "",
 	})
 	req, err := http.NewRequest("POST", s3xurl.String(), bytes.NewBuffer(p))
 	if err != nil {
@@ -99,7 +99,6 @@ func (s *s3xObjectStream) Write(p []byte) (n int, err error) {
 	s.dirty = true
 	newID := res.Header.Get("x-session-id")
 	if newID != s.sessionID {
-		fmt.Printf("New SessionID on Write: %v\n", newID)
 		s.sessionID = newID
 	}
 	return size, nil
