@@ -72,6 +72,11 @@ func (m *MockupObjectStream) Write(p []byte) (int, error) {
 }
 
 func (s *MockupObjectStream) Seek(offset int64, whence int) (int64, error) {
+	stat, err := s.h.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("File %v stat error: %v", s.h.Name(), err)
+	}
+	s.size = int(stat.Size())
 	newPos := 0
 	if whence == io.SeekCurrent {
 		newPos = s.offset + int(offset)
@@ -239,19 +244,15 @@ func (mockup *Mockup) KeyValueRollback(bucket string, object string) error {
 
 // ObjectDelete - delete object
 func (mockup *Mockup) ObjectDelete(bucket string, object string) error {
-	var err error
 	mockup.lock.Lock()
 	defer mockup.lock.Unlock()
 	var uri = bucket + "/" + object
 	kv := mockup.Objects[uri]
 	if kv.Stream {
 		os.Remove(streamFileDir + uri)
-		err = nil
-	} else {
-		delete(mockup.Objects, uri)
-		err = keyValueSync(mockup)
 	}
-	return err
+	delete(mockup.Objects, uri)
+	return keyValueSync(mockup)
 }
 
 func (mockup *Mockup) ObjectGetStream(bucket, object string) (s3xApi.ObjectStream, error) {

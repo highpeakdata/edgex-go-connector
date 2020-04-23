@@ -16,32 +16,28 @@ import (
 )
 
 type s3xObjectStream struct {
-	edgex     *Edgex
-	path      string
-	sessionID string
-	offset    int
-	size      int
-	dirty     bool
+	edgex  *Edgex
+	path   string
+	offset int
+	size   int
+	dirty  bool
 }
 
 func (s *s3xObjectStream) Read(p []byte) (n int, err error) {
 	contentLen := len(p)
-	if s.offset+contentLen > s.size {
-		contentLen = s.size - s.offset
-	}
 	if contentLen == 0 {
 		return 0, nil
 	}
 	s3xurl := s.edgex.newS3xURL(s.path)
 	s3xurl.AddOptions(S3XURLOptions{
-		"comp": "streamsession",
+		"comp":   "streamsession",
+		"cancel": "",
 	})
 	req, err := http.NewRequest("GET", s3xurl.String(), nil)
 	if err != nil {
 		return 0, fmt.Errorf("StreamRead create GET error: %v", err)
 	}
 
-	req.Header.Add("x-session-id", s.sessionID)
 	req.Header.Add("x-ccow-offset", strconv.Itoa(s.offset))
 	req.Header.Add("x-ccow-length", strconv.Itoa(contentLen))
 
@@ -53,15 +49,21 @@ func (s *s3xObjectStream) Read(p []byte) (n int, err error) {
 	if res.StatusCode >= 300 {
 		return 0, fmt.Errorf("StreamRead GET Status code %v", res.StatusCode)
 	}
-	n, err = res.Body.Read(p)
-	if err == nil {
-		s.offset += n
-		newID := res.Header.Get("x-session-id")
-		if newID != s.sessionID {
-			s.sessionID = newID
+	rdLen := 0
+	for {
+		i, err := res.Body.Read(p[rdLen:])
+		rdLen += i
+		if err != nil || rdLen >= cap(p) {
+			if err == io.EOF {
+				err = nil
+			}
+			break
 		}
 	}
-	return n, err
+	if err == nil {
+		s.offset += rdLen
+	}
+	return rdLen, err
 }
 
 func (s *s3xObjectStream) Write(p []byte) (n int, err error) {
@@ -79,7 +81,6 @@ func (s *s3xObjectStream) Write(p []byte) (n int, err error) {
 		return 0, fmt.Errorf("StreamWrite create POST error: %v", err)
 	}
 
-	req.Header.Add("x-session-id", s.sessionID)
 	req.Header.Add("x-ccow-offset", strconv.Itoa(int(s.offset)))
 	req.Header.Add("x-ccow-length", strconv.Itoa(int(size)))
 
@@ -97,10 +98,6 @@ func (s *s3xObjectStream) Write(p []byte) (n int, err error) {
 	}
 	s.offset += size
 	s.dirty = true
-	newID := res.Header.Get("x-session-id")
-	if newID != s.sessionID {
-		s.sessionID = newID
-	}
 	return size, nil
 }
 
@@ -113,7 +110,7 @@ func (s *s3xObjectStream) Seek(offset int64, whence int) (int64, error) {
 	} else if whence == io.SeekStart {
 		newPos = int(offset)
 	}
-	if newPos > s.size || newPos < 0 {
+	if newPos < 0 {
 		return 0, fmt.Errorf("Invalid offset %v", offset)
 	}
 	s.offset = newPos
@@ -121,23 +118,6 @@ func (s *s3xObjectStream) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (s *s3xObjectStream) Close() error {
-	s3xurl := s.edgex.newS3xURL(s.path)
-	s3xurl.AddOptions(S3XURLOptions{
-		"comp": "streamsession",
-	})
-	if s.dirty {
-		s3xurl.AddOptions(S3XURLOptions{
-			"finalize": "",
-		})
-	} else {
-		s3xurl.AddOptions(S3XURLOptions{
-			"cancel": "",
-		})
-	}
-	_, err := http.NewRequest("HEAD", s3xurl.String(), nil)
-	if err != nil {
-		return fmt.Errorf("StreamClose create HEAD error: %v", err)
-	}
 	return nil
 }
 
@@ -149,7 +129,8 @@ func (edgex *Edgex) ObjectGetStream(bucket, object string) (s3xApi.ObjectStream,
 
 	s3xurl := edgex.newS3xURL(objectPath)
 	s3xurl.AddOptions(S3XURLOptions{
-		"comp": "streamsession",
+		"comp":   "streamsession",
+		"cancel": "",
 	})
 
 	res, err := http.Head(s3xurl.String())
@@ -170,10 +151,9 @@ func (edgex *Edgex) ObjectGetStream(bucket, object string) (s3xApi.ObjectStream,
 		size, _ = strconv.Atoi(sizeStr)
 	}
 	return &s3xObjectStream{
-		edgex:     edgex,
-		sessionID: res.Header.Get("x-session-id"),
-		path:      objectPath,
-		offset:    size,
+		edgex: edgex,
+		path:  objectPath,
+		size:  size,
 	}, nil
 }
 
